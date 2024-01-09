@@ -1,0 +1,426 @@
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+
+public class Main { // Spring is not used. Input is from the console
+
+    public static void main(String[] args) throws IOException {
+
+        Input input;
+        try {
+            input = readInputFromKeyboard();
+        }
+        catch (Exception e) {
+            System.out.println(e.getMessage());
+            return;
+        }
+
+        Map<String, Integer> studentPinToTotalCreditMap =
+                ReportUtils.getStudentsWithTotalCredit(input.getStartDate(), input.getEndDate(), input.getMinimumCredit());
+        Report report = ReportUtils.getReport(studentPinToTotalCreditMap);
+
+        if (input.getOutputFormat() == null) {
+            ReportUtils.saveReport(report, input.getReportPath(), FileFormat.HTML);
+            ReportUtils.saveReport(report, input.getReportPath(), FileFormat.CSV);
+        }
+        else if (input.getOutputFormat().equals(FileFormat.HTML)) {
+            ReportUtils.saveReport(report, input.getReportPath(), FileFormat.HTML);
+        }
+        else {
+            ReportUtils.saveReport(report, input.getReportPath(), FileFormat.CSV);
+        }
+    }
+
+    private static Input readInputFromKeyboard() {
+        Scanner keyboard = new Scanner(System.in);
+        Input input = new Input();
+
+        try {
+            String firstInputString = keyboard.nextLine();
+            try {
+                setMinimumCreditForInput(input, firstInputString);
+            }
+            catch (Exception e) {
+                setStudentPinsForInput(input, firstInputString);
+            }
+
+            String secondInputString = keyboard.nextLine();
+            if (input.getStudentPins() != null) {
+                setMinimumCreditForInput(input, secondInputString);
+            }
+            else {
+                setStartAndEndDateForInput(input, secondInputString);
+            }
+
+            String thirdInputString = keyboard.nextLine();
+            if (input.getStudentPins() != null) {
+                setStartAndEndDateForInput(input, thirdInputString);
+            }
+            else {
+                setOutputFormatForInput(input, thirdInputString);
+            }
+
+            if (input.getStudentPins() != null) {
+                String forthInputString = keyboard.nextLine();
+                try {
+                    setOutputFormatForInput(input, forthInputString);
+                }
+                catch (Exception e) {
+                    setReportPathForInput(input, forthInputString);
+                }
+            }
+
+            if (input.getStudentPins() != null && input.getOutputFormat() != null) {
+                setReportPathForInput(input, keyboard.nextLine());
+            }
+        }
+        catch (NoSuchElementException e) {
+            throw new IllegalArgumentException("The required output is not provided");
+        }
+
+        return input;
+    }
+
+    private static void setStudentPinsForInput(Input input, String studentPinsString) {
+        input.setStudentPins(Arrays.asList(studentPinsString.split(",")));
+    }
+
+    private static void setMinimumCreditForInput(Input input, String minCreditString) {
+        try {
+            int minCredit = Integer.parseInt(minCreditString);
+            if (minCredit <= 0) {
+                throw new IllegalArgumentException("The required minimum credit should be a positive integer");
+            }
+            input.setMinimumCredit(minCredit);
+        }
+        catch (NumberFormatException e) {
+            throw new IllegalArgumentException("The minimum credit should be an integer");
+        }
+    }
+
+    private static void setStartAndEndDateForInput(Input input, String startEndDatesString) {
+        String[] startEndDates = startEndDatesString.split(",");
+        if (startEndDates.length != 2) {
+            throw new IllegalArgumentException("The provided dates should be in ISO format separated from ','");
+        }
+        try {
+            LocalDate startDate = LocalDate.parse(startEndDates[0]);
+            LocalDate endDate = LocalDate.parse(startEndDates[1]);
+            input.setStartDate(startDate);
+            input.setEndDate(endDate);
+        }
+        catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("The provided dates should be in ISO format");
+        }
+    }
+
+    private static void setOutputFormatForInput(Input input, String outputFormatString) {
+        if (!outputFormatString.equals(FileFormat.HTML.name().toLowerCase(Locale.ROOT)) &&
+                !outputFormatString.equals(FileFormat.CSV.name().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("The output format should be either HTML, or CSV");
+        }
+
+        input.setOutputFormat(FileFormat.valueOf(outputFormatString.toUpperCase(Locale.ROOT)));
+    }
+
+    private static void setReportPathForInput(Input input, String reportPathString) {
+        input.setReportPath(reportPathString);
+    }
+}
+
+public enum FileFormat {
+    HTML, CSV
+}
+
+import java.time.LocalDate;
+import java.util.List;
+
+public class Input {
+
+    private List<String> studentPins;
+    private int minimumCredit;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private FileFormat outputFormat;
+    private String reportPath;
+
+    public List<String> getStudentPins() {
+        return studentPins;
+    }
+
+    public void setStudentPins(List<String> studentPins) {
+        this.studentPins = studentPins;
+    }
+
+    public int getMinimumCredit() {
+        return minimumCredit;
+    }
+
+    public void setMinimumCredit(int minimumCredit) {
+        this.minimumCredit = minimumCredit;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
+    public FileFormat getOutputFormat() {
+        return outputFormat;
+    }
+
+    public void setOutputFormat(FileFormat outputFormat) {
+        this.outputFormat = outputFormat;
+    }
+
+    public String getReportPath() {
+        return reportPath;
+    }
+
+    public void setReportPath(String reportPath) {
+        this.reportPath = reportPath;
+    }
+}
+
+import java.util.List;
+import java.util.Map;
+
+public class Report {
+
+    private final Map<StudentWithTotalCredit, List<CourseData>> studentToCoursesMap;
+
+    public Report(Map<StudentWithTotalCredit, List<CourseData>> studentToCoursesMap) {
+        this.studentToCoursesMap = studentToCoursesMap;
+    }
+
+    public Map<StudentWithTotalCredit, List<CourseData>> getStudentToCoursesMap() {
+        return studentToCoursesMap;
+    }
+}
+
+public class StudentWithTotalCredit {
+
+    private final String studentName;
+
+    private final int totalCredit;
+
+    public StudentWithTotalCredit(String studentName, int totalCredit) {
+        this.studentName = studentName;
+        this.totalCredit = totalCredit;
+    }
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public int getTotalCredit() {
+        return totalCredit;
+    }
+}
+
+public class CourseData {
+
+    private final String name;
+
+    private final int time;
+
+    private final int credit;
+
+    private final String instructorName;
+
+    public CourseData(String name, int time, int credit, String instructorName) {
+        this.name = name;
+        this.time = time;
+        this.credit = credit;
+        this.instructorName = instructorName;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getTime() {
+        return time;
+    }
+
+    public int getCredit() {
+        return credit;
+    }
+
+    public String getInstructorName() {
+        return instructorName;
+    }
+}
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+public class ReportUtils {
+
+    private static final JdbcTemplate jdbcTemplate = new JdbcTemplate();
+
+    private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    public static Map<String, Integer> getStudentsWithTotalCredit(LocalDate startDate, LocalDate endDate, int minCredit) {
+        Map<String, Integer> studentPinToTotalCreditMap = new HashMap<>();
+
+        String sql = String.format(
+                "SELECT s.pin AS pin, SUM(c.credit) AS total_credit " +
+                "FROM dbo.students AS s " +
+                "JOIN dbo.students_courses_xref AS sc ON sc.student_pin = s.pin " +
+                "JOIN dbo.courses AS c ON c.id = sc.course_id " +
+                "WHERE sc.completion_date BETWEEN '%s' AND '%s'" +
+                "GROUP BY s.pin " +
+                "HAVING SUM(c.credit) >= %d",
+                startDate.format(dateTimeFormatter),
+                endDate.format(dateTimeFormatter),
+                minCredit
+                );
+        jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> studentPinToTotalCreditMap.put(rs.getString("pin"), rs.getInt("total_credit"))
+        );
+
+        return studentPinToTotalCreditMap;
+    }
+
+    public static Report getReport(Map<String, Integer> studentPinToTotalCreditMap) {
+
+        Map<StudentWithTotalCredit, List<CourseData>> studentToCoursesMap = new HashMap<>();
+
+        String sql = String.format(
+                "SELECT " +
+                "s.pin AS student_pin " +
+                "CONCAT(s.first_name, ' ', s.second_name) AS student_name, " +
+                "c.name AS course_name, " +
+                "c.total_time AS course_time, " +
+                "c.credit AS course_credit, " +
+                "CONCAT(i.first_name, ' ', i.second_name) AS instructor_name " +
+                "FROM dbo.students AS s " +
+                "JOIN dbo.students_courses_xref AS sc ON sc.student_pin = s.pin " +
+                "JOIN dbo.courses AS c ON c.id = sc.course_id " +
+                "JOIN dbo.instructors AS i ON i.id = c.instructor_id " +
+                "WHERE s.pin IN (%s)",
+                String.join(",", studentPinToTotalCreditMap.keySet())
+        );
+
+        jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> {
+                    String studentPin = rs.getString("student_pin");
+                    String studentName = rs.getString("student_name");
+                    String courseName = rs.getString("course_name");
+                    int courseTime = rs.getInt("course_time");
+                    int courseCredit = rs.getInt("course_credit");
+                    String instructorName = rs.getString("instructor_name");
+
+                    StudentWithTotalCredit student = new StudentWithTotalCredit(studentName, studentPinToTotalCreditMap.get(studentPin));
+                    if (!studentToCoursesMap.containsKey(student)) {
+                        studentToCoursesMap.put(student, new ArrayList<>());
+                    }
+
+                    studentToCoursesMap.get(student).add(new CourseData(courseName, courseTime, courseCredit, instructorName));
+                }
+        );
+
+        return new Report(studentToCoursesMap);
+    }
+
+    public static void saveReport(Report report, String outputPath, FileFormat fileFormat) throws IOException {
+        String fileName = nowInUtc().concat(".").concat(fileFormat.name().toLowerCase(Locale.ROOT));
+        String content = fileFormat.equals(FileFormat.HTML) ? getHtmlContent(report) : getCsvContent(report);
+        Files.write(
+                Paths.get(outputPath.concat(File.pathSeparator).concat(fileName)),
+                content.getBytes(),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE
+        );
+    }
+
+    private static String getHtmlContent(Report report) {
+        StringBuilder content = new StringBuilder();
+        Map<StudentWithTotalCredit, List<CourseData>> studentToCoursesMap = report.getStudentToCoursesMap();
+
+        content.append("<table>")
+                .append("<tr>")
+                .append("<th>Student</th>")
+                .append("<th>Total Credit</th>")
+                .append("<th></th>")
+                .append("<th>Course Name</th>")
+                .append("<th>Time</th>")
+                .append("<th>Credit</th>")
+                .append("<th>Instructor</th>")
+                .append("</tr>");
+
+        studentToCoursesMap.forEach(((studentWithTotalCredit, coursesData) -> {
+
+            content.append("<tr>")
+                    .append("<td rowspan=\"" + (coursesData.size() + 1) + "\">").append(studentWithTotalCredit.getStudentName()).append("</td>")
+                    .append("<td rowspan=\"" + (coursesData.size() + 1) + "\">").append(studentWithTotalCredit.getTotalCredit()).append("</td>");
+
+            coursesData.forEach(courseData ->
+                content.append("<tr>")
+                        .append("<td></td>")
+                        .append("<td>").append(courseData.getName()).append("</td>")
+                        .append("<td>").append(courseData.getTime()).append("</td>")
+                        .append("<td>").append(courseData.getCredit()).append("</td>")
+                        .append("<td>").append(courseData.getInstructorName()).append("</td>")
+                        .append("</tr>")
+            );
+        }));
+
+        content.append("</table>");
+
+        return content.toString();
+    }
+
+    private static String getCsvContent(Report report) {
+        StringBuilder content = new StringBuilder();
+        Map<StudentWithTotalCredit, List<CourseData>> studentToCoursesMap = report.getStudentToCoursesMap();
+
+        studentToCoursesMap.forEach(((studentWithTotalCredit, coursesData) -> {
+
+            content.append(studentWithTotalCredit.getStudentName())
+                    .append(",")
+                    .append(studentWithTotalCredit.getTotalCredit())
+                    .append("\n");
+
+            coursesData.forEach(courseData ->
+                    content.append(courseData.getName())
+                            .append(",")
+                            .append(courseData.getTime())
+                            .append(courseData.getCredit())
+                            .append(",")
+                            .append(courseData.getInstructorName())
+                            .append("\n"));
+        }));
+
+        return content.toString();
+    }
+
+    private static String nowInUtc() {
+        return LocalDateTime.now(ZoneId.of(ZoneOffset.UTC.toString()))
+                .format(DateTimeFormatter.ISO_DATE_TIME);
+    }
+}
